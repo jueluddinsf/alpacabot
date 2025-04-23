@@ -1,6 +1,6 @@
 from abc import ABC
 
-from dice_ai.app.page_objects.base_page import BasePage
+from app.page_objects.base_page import BasePage
 
 
 class BaseDicePage(BasePage, ABC):

@@ -8,9 +8,9 @@ from pathlib import Path
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-from dice_ai.app.enum.dice.dice_posted_date import DicePostedDate
-from dice_ai.app.enum.dice.dice_work_settings import DiceWorkSetting
-from dice_ai.app.util.parse_pdf import parse_pdf_to_text
+from app.enum.dice.dice_posted_date import DicePostedDate
+from app.enum.dice.dice_work_settings import DiceWorkSetting
+from app.util.parse_pdf import parse_pdf_to_text
 
 load_dotenv()
 
@@ -76,5 +76,5 @@ WORK_SETTINGS_OPTIONS = [
     #WorkSetting.HYBRID,
     #WorkSetting.ON_SITE,
 ]
-DICE_SEARCH_QUERY = "Java Python Software Engineer Quality Developer Backend"
-DICE_LOCATION_QUERY = "San Diego"
+DICE_SEARCH_QUERY = "QA Automation Engineer Test Architect Playwright Cypress Selenium AI"
+DICE_LOCATION_QUERY = "New York"

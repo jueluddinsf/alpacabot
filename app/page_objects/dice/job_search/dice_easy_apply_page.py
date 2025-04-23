@@ -2,7 +2,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
-from dice_ai.app.page_objects.dice.base_dice_page import BaseDicePage
+from app.page_objects.dice.base_dice_page import BaseDicePage
 
 
 class DiceEasyApplyPage(BaseDicePage):

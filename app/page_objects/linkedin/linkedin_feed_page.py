@@ -1,4 +1,4 @@
-from dice_ai.app.page_objects.linkedin.base_linkedin_page import BaseLinkedinPage
+from app.page_objects.linkedin.base_linkedin_page import BaseLinkedinPage
 
 
 class LinkedinFeedPage(BaseLinkedinPage):

@@ -42,7 +42,9 @@ def respond_to_question(question, resume_text) -> str:
         messages=[
             {"role": "system", "content": "Please respond to the provided question using information from the resume. If the question provided is indicated as a Yes or No radio question, then only respond with 'Yes' or 'No', otherwise, "
                                           "The resume follows here: \n'''\n" + resume_text + "'\n'''"},
-            {"role": "user", "content": "The job description is the following: \n'''\n" + job_description + "\n'''"}
+            {"role": "user", "content": "The question is: \n'''\n" + question + "\n'''"}
         ]
     )
+
+    return response.choices[0].message.content
 

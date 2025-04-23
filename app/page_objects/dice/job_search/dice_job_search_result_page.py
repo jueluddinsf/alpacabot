@@ -1,11 +1,11 @@
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.select import Select
 
-from dice_ai.app.enum.dice.employment_type import DiceEmploymentType
-from dice_ai.app.enum.dice.dice_posted_date import DicePostedDate
-from dice_ai.app.enum.dice.dice_work_settings import DiceWorkSetting
-from dice_ai.app.page_objects.dice.base_dice_page import BaseDicePage
-from dice_ai.app.page_objects.dice.job_search.dice_job_description_page import DiceJobDescriptionPage
+from app.enum.dice.employment_type import DiceEmploymentType
+from app.enum.dice.dice_posted_date import DicePostedDate
+from app.enum.dice.dice_work_settings import DiceWorkSetting
+from app.page_objects.dice.base_dice_page import BaseDicePage
+from app.page_objects.dice.job_search.dice_job_description_page import DiceJobDescriptionPage
 
 
 class DiceJobSearchResultPage(BaseDicePage):

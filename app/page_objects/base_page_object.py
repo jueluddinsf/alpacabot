@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+# Add the project root directory to the Python path
+root_dir = str(Path(__file__).parent.parent.parent)
+sys.path.insert(0, root_dir)
+
 from abc import ABC
 from typing import List
 
@@ -6,7 +13,7 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from dice_ai.settings import DRIVER_EXPLICIT_WAIT
+from settings import DRIVER_EXPLICIT_WAIT
 
 
 class BasePageObject(ABC):

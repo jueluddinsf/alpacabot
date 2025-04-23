@@ -1,8 +1,16 @@
+import sys
+import os
+from pathlib import Path
+
+# Add the project root directory to the Python path
+root_dir = str(Path(__file__).parent.parent.parent)
+sys.path.insert(0, root_dir)
+
 from selenium.common import NoSuchElementException
 
-from dice_ai.app.page_objects.dice.dice_login_page import DiceLoginPage
-import dice_ai.app.util.ai.ai_job_posting_utils as AI
-from dice_ai.settings import DICE_EMAIL, DICE_PASSWORD, RESUME_PATH, POSTED_DATE, WORK_SETTINGS_OPTIONS, \
+from app.page_objects.dice.dice_login_page import DiceLoginPage
+import app.util.ai.ai_job_posting_utils as AI
+from settings import DICE_EMAIL, DICE_PASSWORD, RESUME_PATH, POSTED_DATE, WORK_SETTINGS_OPTIONS, \
     DICE_SEARCH_QUERY, DICE_LOCATION_QUERY, driver, USE_AI, RESUME_TEXT, COVER_LETTER_PATH, success_logger, \
     failure_logger
 
