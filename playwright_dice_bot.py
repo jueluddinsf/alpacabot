@@ -40,13 +40,14 @@ DICE_EMAIL = os.environ.get('DICE_EMAIL')
 DICE_PASSWORD = os.environ.get('DICE_PASSWORD')
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
 USE_AI = bool(OPENAI_API_KEY)
+DICE_JOB_URL_PATTERN = "https://www.dice.com/job-detail/{}"
 
 # Resume paths
 resources_path = Path('app/resources')
 RESUME_PATH = str((resources_path / 'resume.pdf').resolve())
 COVER_LETTER_PATH = str((resources_path / 'cover_letter.pdf').resolve())
 
-# Search parameters (from settings.py)
+# Search parameters 
 SEARCH_QUERY = "QA Automation Engineer Test Architect Playwright Cypress Selenium AI"
 LOCATION_QUERY = "New York"
 REMOTE_ONLY = True
@@ -119,14 +120,8 @@ class DiceBot:
                 # Login to Dice
                 await self.login(page)
                 
-                # Search for jobs
-                await self.search_jobs(page)
-                
-                # Apply filters
-                await self.apply_filters(page)
-                
-                # Process job listings
-                await self.process_job_listings(page)
+                # Process job listings using IntelliSearch
+                await self.process_intellisearch_jobs(page)
                 
             except Exception as e:
                 logger.error(f"Error: {e}")
@@ -137,512 +132,241 @@ class DiceBot:
                 await browser.close()
     
     async def login(self, page):
-        """Login to Dice.com"""
+        """Login to Dice.com using the intellisearch URL directly"""
         logger.info("Logging into Dice.com...")
         
-        # Navigate to login page
-        await page.goto("https://www.dice.com/dashboard/login")
+        # Navigate directly to the intellisearch login page
+        await page.goto("https://www.dice.com/dashboard/login?redirectURL=/dashboard/intellisearch-jobs")
         
-        # Two-step login: first email then password
+        # Enter email
         logger.info("Entering email...")
         await page.wait_for_selector('input[name="email"]')
         await page.fill('input[name="email"]', DICE_EMAIL)
         await page.click('button[type="submit"]')
         
-        # Wait for password field
+        # Enter password
         logger.info("Entering password...")
         await page.wait_for_selector('input[name="password"]', timeout=10000)
         await page.fill('input[name="password"]', DICE_PASSWORD)
         await page.click('button[type="submit"]')
         
-        # Wait for home feed to load (updated from dashboard to home-feed)
+        # Wait for intellisearch page to load
         logger.info("Waiting for login to complete...")
         try:
-            # Try multiple possible URL patterns
-            for pattern in ["**/home-feed*", "**/dashboard*", "**/jobs*"]:
-                try:
-                    await page.wait_for_url(pattern, timeout=5000)
-                    logger.info(f"Login successful, navigated to URL matching: {pattern}")
-                    return  # Exit method if any URL pattern matches
-                except PlaywrightTimeoutError:
-                    continue
-            
-            # If we get here, none of the URL patterns matched within timeout
-            # Just wait for navigation to complete and check if login was successful
-            await page.wait_for_load_state("networkidle", timeout=10000)
-            
-            # Check if we're logged in by looking for common elements
-            for selector in ['[data-cy="profile-menu"]', '.user-menu', '[aria-label="User menu"]', 'a[href*="profile"]']:
-                if await page.locator(selector).count() > 0:
-                    logger.info(f"Login confirmed by finding element: {selector}")
-                    return
-                    
-            # If we get here, we couldn't confirm login
-            current_url = page.url
-            logger.warning(f"Couldn't confirm login success. Current URL: {current_url}")
+            await page.wait_for_url("**/dashboard/intellisearch-jobs*", timeout=20000)
+            logger.info("Login successful, navigated to intellisearch jobs page")
+        except PlaywrightTimeoutError:
+            logger.warning("Timeout waiting for intellisearch page")
             # Take screenshot for debugging
             await page.screenshot(path="logs/login_result.png")
-            # Continue anyway
-            
-        except Exception as e:
-            logger.error(f"Error during login: {e}")
-            # Continue anyway - the search might still work
+            # Try to continue anyway
     
-    async def search_jobs(self, page):
-        """Search for jobs using configured parameters"""
-        logger.info(f"Searching for jobs: {SEARCH_QUERY} in {LOCATION_QUERY}")
+    async def process_intellisearch_jobs(self, page):
+        """Process job listings from intellisearch page"""
+        logger.info("Processing intellisearch job listings...")
         
-        # Try to navigate directly to job search page first
-        try:
-            # Try different possible URLs for job search
-            for search_url in ["https://www.dice.com/jobs", "https://www.dice.com/platform/jobs"]:
-                try:
-                    await page.goto(search_url)
-                    await page.wait_for_load_state("networkidle")
-                    logger.info(f"Navigated directly to jobs page: {search_url}")
-                    break
-                except Exception as e:
-                    logger.warning(f"Navigation to {search_url} failed: {e}")
-        except Exception as e:
-            logger.warning(f"Direct navigation to jobs page failed: {e}")
-            # Continue with original approach through UI
-        
-        # Take screenshot to see the current state
-        await page.screenshot(path="logs/search_page_initial.png")
-        logger.info(f"Current URL before search: {page.url}")
-        
-        # Wait a bit for page to stabilize
-        await page.wait_for_timeout(2000)
-        
-        # Find and fill search fields - try multiple selector options
-        search_found = False
-        for selector in [
-            'input[name="q"]', 
-            '#typeaheadInput', 
-            'input[placeholder*="job title"]', 
-            'input[placeholder*="skill"]', 
-            '[data-cy="search-field-keyword"]',
-            'input[type="search"]'
-        ]:
-            try:
-                if await page.locator(selector).count() > 0:
-                    # Clear first in case there's existing text
-                    await page.locator(selector).fill("")
-                    await page.wait_for_timeout(300)
-                    await page.locator(selector).fill(SEARCH_QUERY)
-                    logger.info(f"Found and filled search input with selector: {selector}")
-                    search_found = True
-                    break
-            except Exception as e:
-                logger.warning(f"Error with search input selector {selector}: {e}")
-        
-        if not search_found:
-            logger.warning("Could not find search input - taking screenshot for debugging")
-            await page.screenshot(path="logs/search_input_not_found.png")
-        
-        # Similar improvements for location field...
-        location_found = False
-        for selector in [
-            'input[name="location"]', 
-            '#google-location-search', 
-            'input[placeholder*="location"]', 
-            '[data-cy="search-field-location"]',
-            'input[placeholder="Location"]'
-        ]:
-            try:
-                if await page.locator(selector).count() > 0:
-                    # Clear first
-                    await page.locator(selector).fill("")
-                    await page.wait_for_timeout(300)
-                    await page.locator(selector).fill(LOCATION_QUERY)
-                    logger.info(f"Found and filled location input with selector: {selector}")
-                    location_found = True
-                    break
-            except Exception as e:
-                logger.warning(f"Error with location input selector {selector}: {e}")
-        
-        if not location_found:
-            logger.warning("Could not find location input - taking screenshot for debugging")
-            await page.screenshot(path="logs/location_input_not_found.png")
-
-        # Wait a bit before clicking search
-        await page.wait_for_timeout(1000)
-        
-        # Click search button
-        search_button_found = False
-        for selector in [
-            'button[type="submit"]', 
-            'button:has-text("Search")', 
-            '[data-cy="search-button"]', 
-            '.search-button',
-            'button.btn-primary'
-        ]:
-            try:
-                button = page.locator(selector).first
-                if await button.count() > 0:
-                    logger.info(f"Found search button with selector: {selector}")
-                    await button.click()
-                    search_button_found = True
-                    break
-            except Exception as e:
-                logger.warning(f"Error with search button selector {selector}: {e}")
-        
-        if not search_button_found:
-            logger.warning("Could not find search button - taking screenshot for debugging")
-            await page.screenshot(path="logs/search_button_not_found.png")
-            # Try pressing Enter key as fallback
-            logger.info("Trying to press Enter key as fallback")
-            await page.keyboard.press("Enter")
-        
-        # Wait longer for search results to load
-        try:
-            await page.wait_for_url("**/jobs*", timeout=30000)
-            logger.info("Search completed, URL contains /jobs")
-        except PlaywrightTimeoutError:
-            logger.warning("Timeout waiting for /jobs URL pattern")
-            # Continue anyway, check page content to confirm search results
-        
-        # Wait for network activity to settle
-        await page.wait_for_load_state("networkidle", timeout=30000)
-        await page.wait_for_timeout(5000)  # Additional wait to ensure results load
-        
-        # Take screenshot after search
-        await page.screenshot(path="logs/after_search.png")
-        
-        # More comprehensive verification of search results
-        job_found = False
-        for selector in [
-            '[data-cy="search-card"]', 
-            '.job-card', 
-            '.search-result-item', 
-            'article',
-            '[data-cy*="job"]',
-            '.dhi-search-cards'
-        ]:
-            try:
-                count = await page.locator(selector).count()
-                if count > 0:
-                    logger.info(f"Found {count} search results with selector: {selector}")
-                    job_found = True
-                    break
-            except Exception as e:
-                logger.warning(f"Error checking for search results with selector {selector}: {e}")
-        
-        if not job_found:
-            logger.warning("Could not find job cards after search - taking screenshot")
-            await page.screenshot(path="logs/search_results_not_found.png")
-    
-    async def apply_filters(self, page):
-        """Apply filters for date posted, remote, easy apply"""
-        logger.info("Applying filters...")
-        
-        # Take screenshot before applying filters
-        await page.screenshot(path="logs/before_filters.png")
-        
-        # More robust filter application with retry logic
-        async def try_apply_filter(filter_name, selectors, value_selectors=None):
-            """Helper to try multiple selectors for a filter"""
-            logger.info(f"Attempting to apply {filter_name} filter")
-            
-            for attempt in range(3):  # Try up to 3 times
-                try:
-                    # Find and click the filter dropdown/button
-                    for selector in selectors:
-                        filter_elem = page.locator(selector).first
-                        if await filter_elem.count() > 0:
-                            logger.info(f"Found {filter_name} filter with selector: {selector}")
-                            await filter_elem.click()
-                            await page.wait_for_timeout(500)  # Short wait for dropdown
-                            
-                            # If it's a dropdown with value options
-                            if value_selectors:
-                                value_found = False
-                                for value_selector in value_selectors:
-                                    value_elem = page.locator(value_selector).first
-                                    if await value_elem.count() > 0:
-                                        logger.info(f"Found value option with selector: {value_selector}")
-                                        await value_elem.click()
-                                        value_found = True
-                                        break
-                                
-                                if not value_found:
-                                    logger.warning(f"Could not find value option for {filter_name}")
-                                    # Close dropdown by pressing Escape
-                                    await page.keyboard.press("Escape")
-                            
-                            # Wait for filters to apply
-                            await page.wait_for_timeout(1000)
-                            return True
-                    
-                    # If we get here, we didn't find the filter in this attempt
-                    logger.warning(f"Attempt {attempt+1}: Could not find {filter_name} filter")
-                    await page.wait_for_timeout(1000)  # Wait before retry
-                    
-                except Exception as e:
-                    logger.warning(f"Error applying {filter_name} filter (attempt {attempt+1}): {e}")
-                    await page.wait_for_timeout(1000)  # Wait before retry
-            
-            # If we get here, all attempts failed
-            logger.error(f"Failed to apply {filter_name} filter after multiple attempts")
-            return False
-        
-        # Date posted filter
-        date_filter_selectors = [
-            'button:has-text("Date Posted")', 
-            '[aria-label="Date Posted filter"]',
-            '[data-cy="search-filters-date-posted"]',
-            '#datePosted-filter'
-        ]
-        date_value_selectors = [
-            'text="Last 7 days"',
-            '[value="7"]',
-            '[data-cy="search-filters-datePosted-7"]',
-            '[data-value="7"]'
-        ]
-        await try_apply_filter("Date Posted", date_filter_selectors, date_value_selectors)
-        
-        # Remote filter
-        if REMOTE_ONLY:
-            remote_selectors = [
-                'button:has-text("Remote")',
-                '[aria-label*="Remote"]',
-                '[data-cy="search-filters-remote"]',
-                '#remote-filter',
-                'label:has-text("Remote")'
-            ]
-            await try_apply_filter("Remote", remote_selectors)
-        
-        # Easy Apply filter
-        if EASY_APPLY_ONLY:
-            easy_apply_selectors = [
-                'text="Easy Apply"',
-                '[aria-label*="Easy Apply"]',
-                '[data-cy="search-filters-easyApply"]',
-                '#easy-apply-filter',
-                'label:has-text("Easy Apply")'
-            ]
-            await try_apply_filter("Easy Apply", easy_apply_selectors)
-        
-        # Take screenshot after applying filters
-        await page.screenshot(path="logs/after_filters.png")
-        
-        # Wait for results to update after filters
+        # Wait for job listings to load
+        await page.wait_for_load_state("networkidle")
         await page.wait_for_timeout(3000)
         
-        # Check if filters were applied by looking for filter pills/tags
-        try:
-            filter_pills = await page.locator('.filter-pill, [data-cy="search-filter-pill"]').all()
-            pill_count = len(filter_pills)
-            if pill_count > 0:
-                logger.info(f"Found {pill_count} active filter pills, filters appear to be applied")
-            else:
-                logger.warning("No filter pills found, filters may not have been applied")
-        except Exception as e:
-            logger.warning(f"Error checking filter pills: {e}")
-    
-    async def process_job_listings(self, page):
-        """Process all job listings that match our criteria"""
-        logger.info("Processing job listings...")
+        # Take a screenshot of the intellisearch page
+        await page.screenshot(path="logs/intellisearch_jobs.png")
         
-        # Take a screenshot of the search results
-        await page.screenshot(path="logs/search_results.png")
+        # Find all job listings - using the actual structure seen in screenshot
+        job_selectors = [
+            '[class*="card"]',
+            '[data-cy="search-card"]',
+            '.job-card',
+            'article', 
+            '[data-automation-id="jobCard"]'
+        ]
         
-        # Get the total number of jobs found
-        try:
-            count_elements = [
-                '[data-cy="search-count-header"]',
-                '.search-count',
-                'h1:has-text("jobs")'
-            ]
+        job_cards = None
+        for selector in job_selectors:
+            cards = page.locator(selector)
+            count = await cards.count()
+            if count > 0:
+                logger.info(f"Found {count} job cards with selector: {selector}")
+                job_cards = cards
+                break
+                
+        if not job_cards:
+            logger.error("No job listings found")
+            return
             
-            for selector in count_elements:
-                count_elem = page.locator(selector).first
-                if await count_elem.count() > 0:
-                    count_text = await count_elem.text()
-                    logger.info(f"Found jobs count element: {count_text}")
-                    break
-        except Exception:
-            logger.info("Couldn't find job count element")
-        
-        # Process jobs on the current page
-        page_num = 1
+        # Process each job listing
+        job_count = await job_cards.count()
         total_applied = 0
         max_applications = 20  # Safety limit
         
-        while True and total_applied < max_applications:
-            logger.info(f"Processing page {page_num}")
-            
-            # Get all job cards on the page - try multiple possible selectors
-            job_cards = None
-            for selector in ['[data-cy="search-card"]', '.job-card', '.search-result-item', 'article']:
-                cards = page.locator(selector)
-                count = await cards.count()
-                if count > 0:
-                    logger.info(f"Found {count} job cards with selector: {selector}")
-                    job_cards = cards
-                    break
-            
-            if not job_cards or await job_cards.count() == 0:
-                logger.info("No jobs found on this page")
-                await page.screenshot(path=f"logs/no_jobs_page_{page_num}.png")
+        for i in range(job_count):
+            if total_applied >= max_applications:
+                logger.info(f"Reached maximum applications limit ({max_applications})")
                 break
-            
-            job_count = await job_cards.count()
-            logger.info(f"Found {job_count} jobs on page {page_num}")
-            
-            # Process each job
-            for i in range(job_count):
-                if total_applied >= max_applications:
-                    logger.info(f"Reached maximum applications limit ({max_applications})")
-                    break
-                    
+                
+            try:
+                current_card = job_cards.nth(i)
+                
+                # First check if the job is already applied
+                applied_tag_found = False
+                # Check for "Applied" text anywhere in the card
                 try:
-                    # Get the job card (refresh to avoid stale references)
-                    job_cards_refreshed = job_cards
-                    if await job_cards_refreshed.count() <= i:
-                        logger.warning(f"Job card index {i} no longer available, refreshing page")
-                        await page.reload()
-                        await page.wait_for_load_state("networkidle")
-                        for selector in ['[data-cy="search-card"]', '.job-card', '.search-result-item', 'article']:
-                            cards = page.locator(selector)
-                            if await cards.count() > 0:
-                                job_cards_refreshed = cards
-                                break
-                    
-                    current_card = job_cards_refreshed.nth(i)
-                    
-                    # Check if already applied - try different indicators
-                    already_applied = False
-                    for applied_selector in ['text="Applied"', '.applied-tag', '[data-cy="applied-tag"]']:
-                        applied_badge = current_card.locator(applied_selector)
-                        if await applied_badge.count() > 0:
-                            logger.info(f"Skipping job {i+1} (already applied)")
-                            already_applied = True
-                            break
-                    
-                    if already_applied:
-                        continue
-                    
-                    # Extract job title for logging - try different selectors
-                    job_title = "Unknown Job Title"
-                    for title_selector in ['[data-cy="card-title-link"]', 'h2', '.job-title', 'a[href*="/jobs/detail"]']:
-                        title_elem = current_card.locator(title_selector).first
-                        if await title_elem.count() > 0:
-                            job_title = await title_elem.text()
-                            break
-                    
-                    logger.info(f"Opening job {i+1}: {job_title}")
-                    
-                    # Take screenshot of the card before clicking
-                    await current_card.screenshot(path=f"logs/job_card_{page_num}_{i}.png")
-                    
-                    # Click to open job details
-                    await current_card.click()
-                    
-                    # Wait for job details page to load in a new tab
-                    try:
-                        new_page = await self.context.wait_for_page(timeout=10000)
-                        await new_page.wait_for_load_state('networkidle')
-                        
-                        # Take screenshot of job details
-                        await new_page.screenshot(path=f"logs/job_details_{page_num}_{i}.png")
-                        
-                        # Extract job details
-                        job_description = ""
-                        for desc_selector in ['[data-cy="job-description"]', '.job-description', '#jobDescription']:
-                            desc_elem = new_page.locator(desc_selector).first
-                            if await desc_elem.count() > 0:
-                                job_description = await desc_elem.text()
-                                logger.info(f"Found job description ({len(job_description)} chars)")
-                                break
-                        
-                        if not job_description:
-                            logger.warning("Could not find job description")
-                            job_description = await new_page.locator('body').text()
-                        
-                        # Find apply button - try various selectors
-                        apply_button = None
-                        for apply_selector in [
-                            'button:has-text("Apply Now")', 
-                            '[data-cy="apply-button"]',
-                            'a:has-text("Apply")',
-                            'button:has-text("Apply")',
-                            'a[href*="apply"]',
-                            '.apply-button'
-                        ]:
-                            button = new_page.locator(apply_selector).first
-                            if await button.count() > 0:
-                                logger.info(f"Found apply button with selector: {apply_selector}")
-                                apply_button = button
-                                break
-                        
-                        if apply_button:
-                            # Click Apply button
-                            await apply_button.click()
-                            await new_page.wait_for_load_state('networkidle')
-                            
-                            # Take screenshot after clicking apply
-                            await new_page.screenshot(path=f"logs/apply_form_{page_num}_{i}.png")
-                            
-                            # Handle application process
-                            application_result = await self.handle_application(new_page, job_description, job_title)
-                            if application_result:
-                                total_applied += 1
-                                logger.info(f"Total jobs applied: {total_applied}/{max_applications}")
-                        else:
-                            logger.warning(f"No Apply button found for job: {job_title}")
-                        
-                        # Close the job details tab
-                        await new_page.close()
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing job details: {e}")
-                        import traceback
-                        logger.error(traceback.format_exc())
-                        # Try to close any extra tabs
+                    card_text = await current_card.text_content()
+                    if "Applied" in card_text:
+                        logger.info(f"Skipping job {i+1} - Already applied")
+                        applied_tag_found = True
+                except Exception as e:
+                    logger.debug(f"Error getting card text: {e}")
+                
+                if applied_tag_found:
+                    continue
+                
+                # Extract job title for logging
+                job_title = "Unknown Job Title"
+                job_id = None
+                
+                # Try to find job title and ID
+                title_link = current_card.locator('a.card-title-link').first
+                if await title_link.count() > 0:
+                    job_title = await title_link.text_content()
+                    job_id = await title_link.get_attribute('id')
+                    logger.info(f"Found job title: {job_title} with ID: {job_id}")
+                else:
+                    # Fall back to other selectors
+                    for title_selector in ['h2', '.job-title', '[data-cy*="title"]', 'a[href*="/jobs/detail"]']:
                         try:
-                            pages = self.context.pages
-                            if len(pages) > 1:
-                                for extra_page in pages[1:]:
-                                    await extra_page.close()
+                            title_elem = current_card.locator(title_selector).first
+                            if await title_elem.count() > 0:
+                                job_title = await title_elem.text_content()
+                                if job_title and len(job_title) > 0:
+                                    break
+                        except Exception as e:
+                            logger.debug(f"Error getting title with selector {title_selector}: {e}")
+                
+                logger.info(f"Processing job {i+1}: {job_title}")
+                
+                # Try two approaches:
+                # 1. If we have a job ID, try direct navigation
+                if job_id:
+                    try:
+                        job_url = DICE_JOB_URL_PATTERN.format(job_id)
+                        logger.info(f"Navigating directly to: {job_url}")
+                        new_page = await self.context.new_page()
+                        await new_page.goto(job_url, timeout=15000)
+                        await new_page.wait_for_load_state("networkidle")
+                        
+                        # Process the job details page
+                        success = await self._process_job_detail_page(new_page, job_title)
+                        if success:
+                            total_applied += 1
+                            logger.info(f"Total jobs applied: {total_applied}/{max_applications}")
+                        continue  # Skip the click approach below
+                    except Exception as e:
+                        logger.error(f"Error navigating directly to job URL: {e}")
+                        # Close the page and fall back to clicking
+                        try:
+                            await new_page.close()
                         except:
                             pass
                 
+                # 2. Fall back to clicking the card
+                logger.info("Falling back to clicking the job card")
+                await current_card.click()
+                
+                # Wait for new tab to open
+                try:
+                    new_page = await self.context.wait_for_page(timeout=10000)
+                    await new_page.wait_for_load_state("networkidle")
+                    
+                    # Process the job details page
+                    success = await self._process_job_detail_page(new_page, job_title)
+                    if success:
+                        total_applied += 1
+                        logger.info(f"Total jobs applied: {total_applied}/{max_applications}")
                 except Exception as e:
-                    logger.error(f"Error processing job {i+1}: {e}")
-                    import traceback
-                    logger.error(traceback.format_exc())
-                    # Try to close any extra tabs and continue
-                    try:
-                        pages = self.context.pages
-                        if len(pages) > 1:
-                            for extra_page in pages[1:]:
-                                await extra_page.close()
-                    except:
-                        pass
+                    logger.error(f"Error waiting for new tab: {e}")
+                    # Try to continue with next job
+                
+            except Exception as e:
+                logger.error(f"Error processing job {i+1}: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+                
+                # Close any extra tabs and continue
+                try:
+                    pages = self.context.pages
+                    if len(pages) > 1:
+                        for extra_page in pages[1:]:
+                            await extra_page.close()
+                except:
+                    pass
             
-            # Check if there's a next page
-            next_button_found = False
-            for next_selector in ['[data-cy="pagination-next"]', '.next-page', 'a:has-text("Next")']:
-                next_button = page.locator(next_selector).first
-                if await next_button.count() > 0:
-                    # Check if the button is disabled
-                    is_disabled = await next_button.is_disabled() or 'disabled' in (await next_button.get_attribute('class') or '')
-                    if not is_disabled:
-                        logger.info(f"Moving to next page using selector: {next_selector}")
-                        await next_button.click()
-                        await page.wait_for_load_state("networkidle")
-                        await page.wait_for_timeout(2000)  # Wait for next page to load
-                        page_num += 1
-                        next_button_found = True
-                        break
+            # Wait before processing next job
+            await page.wait_for_timeout(1000)
             
-            if not next_button_found:
-                logger.info("No more pages to process or next button not found")
-                break
-        
         logger.info(f"Job processing complete. Applied to {total_applied} jobs.")
     
+    async def _process_job_detail_page(self, page, job_title):
+        """Process a job detail page and apply if possible"""
+        await page.wait_for_load_state('networkidle')
+        
+        # Take screenshot of job details
+        await page.screenshot(path=f"logs/job_details_{job_title.replace(' ', '_')}.png")
+        
+        # Extract job details
+        job_description = ""
+        for desc_selector in ['[data-cy="job-description"]', '.job-description', '#jobDescription']:
+            desc_elem = page.locator(desc_selector).first
+            if await desc_elem.count() > 0:
+                job_description = await desc_elem.text_content()
+                logger.info(f"Found job description ({len(job_description)} chars)")
+                break
+        
+        if not job_description:
+            logger.warning("Could not find job description")
+            job_description = await page.locator('body').text_content()
+        
+        # Look for Apply Now button
+        apply_button = None
+        for apply_selector in [
+            'button:has-text("Apply now")',
+            'button:has-text("Apply Now")', 
+            '[data-cy="apply-button"]',
+            'a:has-text("Apply")',
+            'button:has-text("Apply")',
+            'a[href*="apply"]',
+            '.apply-button'
+        ]:
+            button = page.locator(apply_selector).first
+            if await button.count() > 0 and await button.is_visible():
+                logger.info(f"Found apply button with selector: {apply_selector}")
+                apply_button = button
+                break
+        
+        if apply_button:
+            # Click Apply button
+            await apply_button.click()
+            await page.wait_for_load_state('networkidle')
+            await page.wait_for_timeout(2000)
+            
+            # Take screenshot after clicking apply
+            await page.screenshot(path=f"logs/apply_form_{job_title.replace(' ', '_')}.png")
+            
+            # Handle the application process
+            application_result = await self.handle_application(page, job_description, job_title)
+            
+            # Close the job details tab
+            await page.close()
+            return application_result
+        else:
+            logger.warning(f"No Apply button found for job: {job_title} - likely already applied")
+            # Log as already applied
+            with open("logs/already_applied.log", "a") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Already applied to: {job_title} at {page.url}\n")
+            
+            await page.close()
+            return False
+
     async def handle_application(self, page, job_description, job_title):
         """Handle the actual application process"""
         logger.info(f"Applying to job: {job_title}")
@@ -655,118 +379,44 @@ class DiceBot:
                 logger.error(f"Error generating cover letter: {e}")
         
         try:
-            # Wait for application form to appear - try different selectors
-            form_found = False
-            for form_selector in ['form', '[data-cy="application-form"]', '.application-form', '#applicationForm']:
-                try:
-                    await page.wait_for_selector(form_selector, timeout=5000)
-                    logger.info(f"Found application form with selector: {form_selector}")
-                    form_found = True
+            # Check for "Next" button first (multi-step application)
+            next_button = None
+            for next_selector in ['button:has-text("Next")', '[data-cy="next-button"]']:
+                button = page.locator(next_selector).first
+                if await button.count() > 0:
+                    logger.info(f"Found Next button with selector: {next_selector}")
+                    next_button = button
                     break
-                except PlaywrightTimeoutError:
-                    continue
-            
-            if not form_found:
-                logger.warning("Could not find application form - taking screenshot")
-                await page.screenshot(path=f"logs/application_form_not_found_{job_title.replace(' ', '_')}.png")
-                # Try to continue anyway
-            
-            # Check for resume upload
-            resume_upload_found = False
-            for upload_selector in [
-                'input[type="file"][accept*=".pdf"]', 
-                'input[type="file"][accept*="pdf"]',
-                'input[type="file"]',
-                '[data-cy="resume-upload"]'
-            ]:
-                resume_upload = page.locator(upload_selector).first
-                if await resume_upload.count() > 0:
-                    logger.info(f"Found resume upload with selector: {upload_selector}")
-                    await resume_upload.set_input_files(RESUME_PATH)
-                    logger.info("Resume uploaded")
-                    resume_upload_found = True
-                    break
-            
-            if not resume_upload_found:
-                logger.warning("Could not find resume upload field - taking screenshot")
-                await page.screenshot(path=f"logs/resume_upload_not_found_{job_title.replace(' ', '_')}.png")
-            
-            # Check for cover letter upload if we have one
-            if USE_AI and OPENAI_API_KEY:
-                cover_letter_found = False
-                for cover_selector in [
-                    'input[type="file"][accept*=".pdf"]:nth-of-type(2)',
-                    'input[type="file"][name*="cover"]',
-                    'input[type="file"][id*="cover"]',
-                    '[data-cy="cover-letter-upload"]'
-                ]:
-                    cover_letter_upload = page.locator(cover_selector).first
-                    if await cover_letter_upload.count() > 0:
-                        logger.info(f"Found cover letter upload with selector: {cover_selector}")
-                        await cover_letter_upload.set_input_files(COVER_LETTER_PATH)
-                        logger.info("Cover letter uploaded")
-                        cover_letter_found = True
-                        break
+                    
+            if next_button:
+                await next_button.click()
+                await page.wait_for_load_state('networkidle')
+                await page.wait_for_timeout(2000)
                 
-                if not cover_letter_found:
-                    logger.info("Could not find dedicated cover letter upload field (this is often normal)")
-            
-            # Look for and fill any required text fields
-            required_fields = page.locator('input[required]:not([type="file"]), textarea[required]')
-            required_count = await required_fields.count()
-            logger.info(f"Found {required_count} required fields")
-            
-            for i in range(required_count):
-                field = required_fields.nth(i)
-                placeholder = await field.get_attribute('placeholder') or ''
-                name = await field.get_attribute('name') or ''
-                field_type = await field.get_attribute('type') or ''
-                
-                logger.info(f"Required field {i+1}: type={field_type}, name={name}, placeholder={placeholder}")
-                
-                if not await field.input_value():  # Only fill if empty
-                    if 'name' in placeholder.lower() or 'name' in name.lower():
-                        await field.fill("Juel Uddin")
-                    elif 'email' in placeholder.lower() or 'email' in name.lower():
-                        await field.fill(DICE_EMAIL)
-                    elif 'phone' in placeholder.lower() or 'phone' in name.lower():
-                        await field.fill("6463993045")
-                    elif field_type == 'checkbox':
-                        await field.check()
-                    else:
-                        await field.fill("Yes")  # Default for other required fields
-            
-            # Handle common radio button groups (often for yes/no questions)
-            radio_groups = page.locator('input[type="radio"]').all()
-            if await radio_groups.count() > 0:
-                logger.info(f"Found radio buttons, trying to select positive options")
-                # Try to select "Yes" for all radio groups
-                # This is a heuristic - we're looking for labels containing "Yes"
-                yes_radios = page.locator('label:has-text("Yes") input[type="radio"], input[type="radio"][value="yes"]')
-                for i in range(await yes_radios.count()):
-                    radio = yes_radios.nth(i)
-                    if not await radio.is_checked():
-                        await radio.check()
-                        logger.info(f"Selected 'Yes' radio button {i+1}")
-            
-            # Submit application - try different selectors
-            submit_found = False
+            # Look for submit button
+            submit_button = None
             for submit_selector in [
-                'button[type="submit"]', 
                 'button:has-text("Submit")',
-                'button:has-text("Apply")',
+                'button[type="submit"]',
                 '[data-cy="submit-application"]',
                 '.submit-button'
             ]:
-                submit_button = page.locator(submit_selector).first
-                if await submit_button.count() > 0:
+                button = page.locator(submit_selector).first
+                if await button.count() > 0:
                     logger.info(f"Found submit button with selector: {submit_selector}")
-                    # If the button is disabled, we might have missed something required
-                    if await submit_button.is_disabled():
-                        logger.warning("Submit button is disabled. Taking screenshot to troubleshoot.")
-                        await page.screenshot(path=f"logs/disabled_submit_{job_title.replace(' ', '_')}.png")
-                        # Continue anyway - we'll try to click it
+                    submit_button = button
+                    break
                     
+            if submit_button:
+                # If the button is disabled, we might have missed something required
+                if await submit_button.is_disabled():
+                    logger.warning("Submit button is disabled. Taking screenshot to troubleshoot.")
+                    await page.screenshot(path=f"logs/disabled_submit_{job_title.replace(' ', '_')}.png")
+                    # Try to fill required fields
+                    await self._fill_required_fields(page)
+                
+                # Try clicking submit again
+                if not await submit_button.is_disabled():
                     await submit_button.click()
                     logger.info(f"Application submitted for: {job_title}")
                     
@@ -777,10 +427,11 @@ class DiceBot:
                     # Wait for confirmation
                     await page.wait_for_timeout(3000)
                     await page.screenshot(path=f"logs/application_result_{job_title.replace(' ', '_')}.png")
-                    submit_found = True
                     return True
-            
-            if not submit_found:
+                else:
+                    logger.warning(f"Submit button remained disabled for: {job_title}")
+                    return False
+            else:
                 logger.warning(f"No submit button found for: {job_title}")
                 await page.screenshot(path=f"logs/no_submit_{job_title.replace(' ', '_')}.png")
                 return False
@@ -793,6 +444,65 @@ class DiceBot:
             with open("logs/failed_applications.log", "a") as f:
                 f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} - Failed to apply to job: {job_title} at {page.url} - {str(e)}\n")
             return False
+    
+    async def _fill_required_fields(self, page):
+        """Fill any required fields in the application form"""
+        logger.info("Checking for required fields to fill")
+        
+        # Look for and fill any required text fields
+        required_fields = page.locator('input[required]:not([type="file"]), textarea[required]')
+        required_count = await required_fields.count()
+        logger.info(f"Found {required_count} required fields")
+        
+        for i in range(required_count):
+            field = required_fields.nth(i)
+            placeholder = await field.get_attribute('placeholder') or ''
+            name = await field.get_attribute('name') or ''
+            field_type = await field.get_attribute('type') or ''
+            
+            logger.info(f"Required field {i+1}: type={field_type}, name={name}, placeholder={placeholder}")
+            
+            if not await field.input_value():  # Only fill if empty
+                if 'name' in placeholder.lower() or 'name' in name.lower():
+                    await field.fill("Juel Uddin")
+                elif 'email' in placeholder.lower() or 'email' in name.lower():
+                    await field.fill(DICE_EMAIL)
+                elif 'phone' in placeholder.lower() or 'phone' in name.lower():
+                    await field.fill("6463993045")
+                elif field_type == 'checkbox':
+                    await field.check()
+                else:
+                    await field.fill("Yes")  # Default for other required fields
+        
+        # Check for resume upload
+        resume_upload_found = False
+        for upload_selector in [
+            'input[type="file"][accept*=".pdf"]', 
+            'input[type="file"][accept*="pdf"]',
+            'input[type="file"]',
+            '[data-cy="resume-upload"]'
+        ]:
+            resume_upload = page.locator(upload_selector).first
+            if await resume_upload.count() > 0:
+                logger.info(f"Found resume upload with selector: {upload_selector}")
+                await resume_upload.set_input_files(RESUME_PATH)
+                logger.info("Resume uploaded")
+                resume_upload_found = True
+                break
+        
+        if not resume_upload_found:
+            logger.info("No resume upload field found - may not be required at this step")
+        
+        # Handle radio buttons - select "Yes" options
+        radio_groups = await page.locator('input[type="radio"]').all()
+        if len(radio_groups) > 0:
+            logger.info(f"Found {len(radio_groups)} radio buttons, selecting positive options")
+            yes_radios = page.locator('label:has-text("Yes") input[type="radio"], input[type="radio"][value="yes"]')
+            for i in range(await yes_radios.count()):
+                radio = yes_radios.nth(i)
+                if not await radio.is_checked():
+                    await radio.check()
+                    logger.info(f"Selected 'Yes' radio button {i+1}")
 
 async def main():
     # Create logs directory if it doesn't exist
