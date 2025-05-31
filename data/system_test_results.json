@@ -1,0 +1,254 @@
+{
+  "timestamp": "2025-05-31T02:06:05.163883",
+  "passed_tests": 41,
+  "failed_tests": 0,
+  "success_rate": 100.0,
+  "results": [
+    {
+      "test": "Package flask",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.344829"
+    },
+    {
+      "test": "Package flask_socketio",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.416133"
+    },
+    {
+      "test": "Package pandas",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.708518"
+    },
+    {
+      "test": "Package numpy",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.708542"
+    },
+    {
+      "test": "Package alpaca",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.708663"
+    },
+    {
+      "test": "Package requests",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.708679"
+    },
+    {
+      "test": "Config import",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.710377"
+    },
+    {
+      "test": "CacheManager import",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.710565"
+    },
+    {
+      "test": "TradingBot import",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.789636"
+    },
+    {
+      "test": "Dashboard import",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827861"
+    },
+    {
+      "test": "Config.MIN_STOCK_PRICE exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827898"
+    },
+    {
+      "test": "Config.DROP_THRESHOLD exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827908"
+    },
+    {
+      "test": "Config.PROFIT_TARGET exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827916"
+    },
+    {
+      "test": "Config.LOOKBACK_DAYS exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827923"
+    },
+    {
+      "test": "Config.SP500_SYMBOLS exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827931"
+    },
+    {
+      "test": "Config.ENABLE_CACHING exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827938"
+    },
+    {
+      "test": "MIN_STOCK_PRICE > 0",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827946"
+    },
+    {
+      "test": "DROP_THRESHOLD in valid range",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827953"
+    },
+    {
+      "test": "SP500_SYMBOLS not empty",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827961"
+    },
+    {
+      "test": "Data directory exists",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.827990"
+    },
+    {
+      "test": "File creation test_watchlist.json",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.828215"
+    },
+    {
+      "test": "File creation test_holdings.json",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.828769"
+    },
+    {
+      "test": "File creation test_trades.json",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.829081"
+    },
+    {
+      "test": "File creation test_cache.json",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.829273"
+    },
+    {
+      "test": "Cache initialization",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.831601"
+    },
+    {
+      "test": "Cache set/get",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.831620"
+    },
+    {
+      "test": "Cache statistics",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.835399"
+    },
+    {
+      "test": "Cache clearing",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.835654"
+    },
+    {
+      "test": "TradingBot initialization",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.835916"
+    },
+    {
+      "test": "Bot config access",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.835924"
+    },
+    {
+      "test": "Bot cache access",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.835932"
+    },
+    {
+      "test": "JSON file operations",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:02.836133"
+    },
+    {
+      "test": "Portfolio summary",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:03.029649"
+    },
+    {
+      "test": "Cache status",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:03.029714"
+    },
+    {
+      "test": "Price lookup",
+      "passed": true,
+      "message": "API call successful or gracefully handled",
+      "timestamp": "2025-05-31T02:06:03.054558"
+    },
+    {
+      "test": "Endpoint /api/config",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.067814"
+    },
+    {
+      "test": "Endpoint /api/portfolio",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.071918"
+    },
+    {
+      "test": "Endpoint /api/holdings",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.074838"
+    },
+    {
+      "test": "Endpoint /api/watchlist",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.158412"
+    },
+    {
+      "test": "Endpoint /api/trades",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.161138"
+    },
+    {
+      "test": "Endpoint /api/cache/status",
+      "passed": true,
+      "message": "",
+      "timestamp": "2025-05-31T02:06:05.163533"
+    }
+  ]
+}
