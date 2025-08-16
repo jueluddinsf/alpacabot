@@ -1,72 +1,79 @@
-#!/usr/bin/env python3
-"""
-AlpacaBot Main Entry Point for Replit Deployment
+"""Main orchestration module for the AI trading workflow."""
 
-This file automatically starts the trading bot in dashboard mode for Replit hosting.
-The dashboard will be accessible via the Replit web viewer.
-"""
+from __future__ import annotations
 
-import os
-import sys
-from config import Config
+import asyncio
+import pandas as pd
 
-def setup_environment():
-    """Setup environment for Replit deployment"""
-    print("🚀 Setting up AlpacaBot for Replit deployment...")
-    
-    # Ensure data directory exists
-    os.makedirs('data', exist_ok=True)
-    
-    # Set Flask environment variables for production
-    os.environ['FLASK_ENV'] = 'production'
-    
-    # Use Replit's default port if available
-    if 'REPLIT_PORT' in os.environ:
-        os.environ['FLASK_PORT'] = os.environ['REPLIT_PORT']
-    
-    print(f"📊 Configuration:")
-    print(f"  - Paper Trading: {Config.PAPER_TRADING}")
-    print(f"  - Drop Threshold: {Config.DROP_THRESHOLD*100}%")
-    print(f"  - Min Stock Price: ${Config.MIN_STOCK_PRICE}")
-    print(f"  - Caching: {'Enabled' if Config.ENABLE_CACHING else 'Disabled'}")
-    print(f"  - Port: {Config.FLASK_PORT}")
-    
-    if not Config.API_KEY or not Config.SECRET_KEY:
-        print("⚠️  WARNING: No Alpaca API credentials found.")
-        print("   Set APCA_API_KEY_ID and APCA_API_SECRET_KEY in Replit Secrets")
-        print("   The bot will run in limited mode until credentials are added.")
-    else:
-        print("✅ Alpaca API credentials detected")
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
-def main():
-    """Main entry point"""
-    setup_environment()
-    
-    print("\n" + "="*60)
-    print("🤖 AlpacaBot Trading Dashboard")
-    print("="*60)
-    print("📈 Starting web dashboard...")
-    print("🌐 Dashboard will be available in the Replit web viewer")
-    print("="*60)
-    
-    # Import and run dashboard
+from core.config import settings
+from core.database import Database
+from data.market_data import fetch_top_tickers, fetch_price_data, fetch_news_sentiment, fetch_chart_snapshot
+from analysis.vision import describe_chart
+from strategy.signals import generate_signal
+from strategy.risk import position_size, should_trade
+from execution.trading import get_account, place_order
+from reporting.reports import generate_report, send_email
+
+
+db = Database(settings.postgres_dsn)
+
+
+async def daily_workflow() -> None:
+    tickers = await fetch_top_tickers()
+    signals = []
+    trades = []
+    account = get_account()
+    balance = float(account.cash)
+    loss_ledger = {}
+
+    for symbol in tickers:
+        if not should_trade(symbol, loss_ledger):
+            continue
+        price_data = await fetch_price_data(symbol)
+        price_df = None
+        if "values" in price_data:
+            price_df = pd.DataFrame(price_data["values"]).iloc[::-1]
+        else:
+            ts = price_data.get("Time Series (Daily)", {})
+            price_df = pd.DataFrame([
+                {"date": k, **v} for k, v in ts.items()
+            ]).sort_values("date")
+        sentiment_data = await fetch_news_sentiment(symbol)
+        sentiment_score = sentiment_data.get("overall_sentiment_score", 0)
+        ai_score = 0.0  # placeholder for Danelfin score which isn't returned in top-tickers endpoint
+
+        # Optional chart analysis via LLM vision
+        try:
+            chart_img = await fetch_chart_snapshot(symbol)
+            _ = await describe_chart(chart_img, "https://example.com/vision", "demo")
+        except Exception:
+            pass
+
+        signal = generate_signal(symbol, price_df, ai_score, sentiment_score)
+        signals.append(signal)
+
+        if signal.direction in {"buy", "sell"}:
+            stop_loss_distance = 1  # placeholder
+            qty = position_size(balance, 0.01, stop_loss_distance)
+            place_order(symbol, int(qty), signal.direction)
+            trades.append(f"{signal.direction} {qty} {symbol}")
+
+    report = generate_report(signals, trades, 0.0)
+    send_email("Daily Market Report", report, [settings.smtp_user])
+
+
+async def main() -> None:
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(daily_workflow, "cron", hour=0, minute=0)
+    scheduler.start()
+    print("Scheduler started. Press Ctrl+C to exit.")
     try:
-        from dashboard import app, socketio
-        
-        # Run with production settings for Replit
-        socketio.run(
-            app, 
-            debug=False,  # Disable debug in production
-            port=Config.FLASK_PORT, 
-            host='0.0.0.0',
-            allow_unsafe_werkzeug=True  # Required for Replit
-        )
-        
-    except KeyboardInterrupt:
-        print("\n🛑 AlpacaBot stopped by user")
-    except Exception as e:
-        print(f"\n❌ Error starting AlpacaBot: {e}")
-        sys.exit(1)
+        await asyncio.Event().wait()
+    except (KeyboardInterrupt, SystemExit):
+        pass
+
 
 if __name__ == "__main__":
-    main() 
+    asyncio.run(main())
